@@ -1,56 +1,207 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
-    <title>TEST SYNC</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPPY FRISBEE - MULTIPLAYER</title>
     <script src="https://unpkg.com/@instantdb/core@latest/dist/index.global.js"></script>
     <style>
-        body { background: #111; color: white; font-family: sans-serif; text-align: center; }
-        #box { width: 50px; height: 50px; background: red; position: absolute; }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        body { margin: 0; overflow: hidden; background: #081a05; font-family: 'VT323', monospace; color: white; image-rendering: pixelated; }
+        canvas { display: block; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.9); z-index: 20; text-align: center; }
+        #overlay h1 { font-size: 80px; color: #d34; text-shadow: 4px 4px #000; margin: 0; }
+        .btn { padding: 15px 40px; background: #d34; color: white; border: 4px solid white; cursor: pointer; font-size: 28px; font-family: 'VT323'; box-shadow: 5px 5px #000; margin-top: 20px; }
+        .char-container { display: flex; gap: 20px; margin: 20px; }
+        .char-card { border: 4px solid #555; padding: 10px; cursor: pointer; width: 140px; background: #222; }
+        .char-card img { width: 100%; height: 150px; object-fit: cover; }
+        .char-card.selected { border-color: #fff; background: #444; box-shadow: 0 0 15px #fff; }
+        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; font-size: 30px; display: none; }
     </style>
 </head>
 <body>
-    <h1>MUOVI IL QUADRATO CON LE FRECCE</h1>
-    <p id="status">Connessione...</p>
-    <div id="box"></div>
 
-    <script>
-        const db = InstantDB.init({ appId: 'd1f665e7-bc74-4e27-a8a1-203e49387593' });
-        const box = document.getElementById('box');
-        let x = 100;
-        let myId = Math.random().toString(36).substring(7); // ID casuale per questa scheda
+    <div id="ui">SCORE: <span id="scoreText">000</span></div>
 
-        // Leggi dal DB
-        db.subscribe({ test_pos: {} }, (result) => {
-            if (result.data?.test_pos) {
-                document.getElementById('status').innerText = "CONNESSO! Muovi le frecce.";
-                result.data.test_pos.forEach(p => {
-                    if (p.id !== myId) {
-                        // Crea o muovi il quadrato dell'altro giocatore
-                        let farBox = document.getElementById(p.id);
-                        if (!farBox) {
-                            farBox = document.createElement('div');
-                            farBox.id = p.id;
-                            farBox.style.width = '50px';
-                            farBox.style.height = '50px';
-                            farBox.style.background = 'blue';
-                            farBox.style.position = 'absolute';
-                            document.body.appendChild(farBox);
-                        }
-                        farBox.style.left = p.x + 'px';
-                        farBox.style.top = '200px';
-                    }
-                });
+    <div id="overlay">
+        <div id="screen-title">
+            <h1>TRIPPY FRISBEE</h1>
+            <button class="btn" onclick="goToSelect()">INSERT COIN</button>
+        </div>
+
+        <div id="screen-select" style="display:none;">
+            <h2>SELECT PLAYER</h2>
+            <div class="char-container">
+                <div class="char-card" id="card-ale" onclick="selectChar('Alessandro')">
+                    <img src="ale.jpeg"><h3>ALE</h3>
+                </div>
+                <div class="char-card" id="card-gug" onclick="selectChar('Guglielmo')">
+                    <img src="gug.jpeg"><h3>GUG</h3>
+                </div>
+            </div>
+            <button class="btn" id="startBtn" style="opacity:0.3; pointer-events:none;" onclick="startGame()">START</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+// --- CONFIGURAZIONE DATABASE ---
+const db = InstantDB.init({ appId: 'd1f665e7-bc74-4e27-a8a1-203e49387593' });
+
+// --- AUDIO (NOMI ORIGINALI) ---
+const sounds = {
+    music: new Audio('sountrack.mp3'),
+    frisbee: new Audio('fx_frisbee1.mp3'), // Puoi aggiungerne altri se li hai
+    point: new Audio('fx_point.mp3'),
+    fail: new Audio('fx_merda1.mp3'),
+    schianto: new Audio('fx_schianto.mp3')
+};
+sounds.music.loop = true;
+
+function playVoice(key) {
+    sounds.music.pause();
+    sounds[key].currentTime = 0;
+    sounds[key].play().catch(() => {});
+    // La musica riprende dopo 1.8 secondi
+    setTimeout(() => { if(gameState === 'PLAY') sounds.music.play(); }, 1800);
+}
+
+// --- LOGICA DI GIOCO ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let gameState = 'MENU', myRole = null, score = 0;
+let players = {
+    top: { x: 0, y: 80, name: 'Guglielmo' },
+    bottom: { x: 0, y: 0, name: 'Alessandro' }
+};
+let frisbee = { x: 0, y: 0, vy: 0, active: false, owner: 'bottom' };
+
+// --- SINCRONIZZAZIONE ---
+db.subscribe({ trippy_game: {} }, (result) => {
+    if (result.data?.trippy_game) {
+        result.data.trippy_game.forEach(obj => {
+            if (obj.id === 'state') {
+                score = obj.score;
+                if (myRole !== obj.lastLauncher) {
+                    frisbee.active = obj.fActive;
+                    frisbee.vy = obj.fVy;
+                    frisbee.owner = obj.fOwner;
+                }
+            } else if (obj.id !== myRole && players[obj.id]) {
+                players[obj.id].x = obj.x;
             }
         });
+    }
+});
 
-        // Muovi e scrivi nel DB
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') x -= 10;
-            if (e.key === 'ArrowRight') x += 10;
-            box.style.left = x + 'px';
-            box.style.top = '200px';
-            db.transact([db.tx.test_pos[myId].update({ x: x })]);
-        });
-    </script>
+function goToSelect() {
+    sounds.music.play().catch(() => {});
+    document.getElementById('screen-title').style.display = 'none';
+    document.getElementById('screen-select').style.display = 'block';
+}
+
+function selectChar(name) {
+    myRole = (name === 'Alessandro') ? 'bottom' : 'top';
+    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('card-' + (myRole === 'bottom' ? 'ale' : 'gug')).classList.add('selected');
+    document.getElementById('startBtn').style.opacity = 1;
+    document.getElementById('startBtn').style.pointerEvents = 'auto';
+}
+
+function startGame() {
+    gameState = 'PLAY';
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('ui').style.display = 'block';
+    resize();
+}
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    players.bottom.y = canvas.height - 120;
+    if (!frisbee.active) resetFrisbee();
+}
+
+function resetFrisbee() {
+    frisbee.active = false;
+    frisbee.x = players[frisbee.owner].x;
+    frisbee.y = (frisbee.owner === 'bottom') ? players.bottom.y - 40 : players.top.y + 40;
+}
+
+const keys = {};
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+function update() {
+    if (gameState !== 'PLAY') return;
+
+    // Movimento Locale
+    if (keys['ArrowLeft'] && players[myRole].x > 40) players[myRole].x -= 8;
+    if (keys['ArrowRight'] && players[myRole].x < canvas.width - 40) players[myRole].x += 8;
+
+    // Lancio
+    if (keys['Space'] && !frisbee.active && frisbee.owner === myRole) {
+        frisbee.active = true;
+        frisbee.vy = (myRole === 'bottom') ? -14 : 14;
+        sounds.frisbee.currentTime = 0; sounds.frisbee.play();
+    }
+
+    // Logica Frisbee
+    if (frisbee.active) {
+        frisbee.y += frisbee.vy;
+        let dTop = Math.hypot(frisbee.x - players.top.x, frisbee.y - players.top.y);
+        let dBot = Math.hypot(frisbee.x - players.bottom.x, frisbee.y - players.bottom.y);
+
+        if (frisbee.vy < 0 && dTop < 45) { 
+            score++; frisbee.owner = 'top'; frisbee.active = false; playVoice('point'); 
+        } else if (frisbee.vy > 0 && dBot < 45) { 
+            score++; frisbee.owner = 'bottom'; frisbee.active = false; playVoice('point'); 
+        }
+        
+        if (frisbee.y < -50 || frisbee.y > canvas.height + 50) {
+            frisbee.active = false; playVoice('fail');
+        }
+    } else {
+        resetFrisbee();
+    }
+
+    document.getElementById('scoreText').innerText = score.toString().padStart(3, '0');
+
+    // Sincronizzazione Database
+    db.transact([
+        db.tx.trippy_game[myRole].update({ x: players[myRole].x }),
+        db.tx.trippy_game['state'].update({ 
+            score, fActive: frisbee.active, fVy: frisbee.vy, fOwner: frisbee.owner, lastLauncher: myRole 
+        })
+    ]);
+}
+
+function draw() {
+    ctx.fillStyle = '#1e3d1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (gameState === 'PLAY') {
+        // Disegno Alessandro (Bottom)
+        ctx.fillStyle = '#d34';
+        ctx.beginPath(); ctx.arc(players.bottom.x, players.bottom.y, 25, 0, Math.PI*2); ctx.fill();
+        
+        // Disegno Guglielmo (Top)
+        ctx.fillStyle = '#431';
+        ctx.beginPath(); ctx.arc(players.top.x, players.top.y, 25, 0, Math.PI*2); ctx.fill();
+
+        // Disegno Frisbee
+        ctx.fillStyle = '#dfff00';
+        ctx.beginPath(); ctx.arc(frisbee.x, frisbee.y, 10, 0, Math.PI*2); ctx.fill();
+    }
+
+    update();
+    requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', resize);
+resize();
+draw();
+</script>
 </body>
 </html>
