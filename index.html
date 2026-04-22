@@ -1,90 +1,11 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIPPY FRISBEE - ONLINE</title>
-    <script src="https://unpkg.com/@instantdb/core@latest/dist/index.global.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
-        body { margin: 0; overflow: hidden; background: #081a05; font-family: 'VT323', monospace; color: white; image-rendering: pixelated; }
-        canvas { display: block; }
-        
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.95); z-index: 20; text-align: center; }
-        #overlay h1 { font-size: 85px; text-shadow: 5px 5px #d34; margin: 0; letter-spacing: 2px; line-height: 0.8; }
-        
-        .mushroom { width: 60px; height: 50px; margin-bottom: 20px; position: relative; display: inline-block; }
-        .m-top { width: 60px; height: 30px; background: #d34; border-radius: 30px 30px 5px 5px; box-shadow: inset -10px -5px rgba(0,0,0,0.2); }
-        .m-dot { position: absolute; background: white; width: 10px; height: 10px; border-radius: 50%; }
-        .m-stem { width: 25px; height: 20px; background: #eee; margin: -2px auto 0; border-radius: 0 0 5px 5px; }
-
-        .btn { padding: 10px 45px; background: #d34; color: white; border: 4px solid white; cursor: pointer; margin-top: 30px; font-size: 26px; font-family: 'VT323', monospace; box-shadow: 5px 5px #000; transition: 0.2s; }
-        .btn:hover { background: #ff5555; transform: scale(1.05); }
-
-        .char-container { display: flex; gap: 40px; margin: 30px 0; }
-        .char-card { border: 4px solid #555; padding: 10px; cursor: pointer; background: rgba(0,0,0,0.5); width: 160px; transition: 0.3s; }
-        .char-card img { width: 100%; height: 180px; object-fit: cover; border: 2px solid #333; margin-bottom: 10px; }
-        .char-card.selected { border-color: #fff; background: rgba(255,255,255,0.1); box-shadow: 0 0 25px #fff; transform: translateY(-10px); }
-        
-        #ui-ingame { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 3px 3px #000; z-index: 10; display: none; font-size: 30px; }
-        .blink { animation: blinker 1s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0; } }
-        #role-tag { position: absolute; bottom: 20px; right: 20px; color: #aaa; font-size: 20px; }
-    </style>
-</head>
-<body>
-
-    <div id="overlay">
-        <div id="screen-title">
-            <div class="mushroom">
-                <div class="m-top">
-                    <div class="m-dot" style="top:5px; left:15px;"></div>
-                    <div class="m-dot" style="top:12px; left:40px; width:6px; height:6px;"></div>
-                </div>
-                <div class="m-stem"></div>
-            </div>
-            <h1>TRIPPY FRISBEE</h1>
-            <p style="color: #666; margin-top: 10px; letter-spacing: 4px;">ONLINE MULTIPLAYER</p>
-            <button class="btn" onclick="goToSelect()">INSERT COIN</button>
-        </div>
-
-        <div id="screen-select" style="display:none;">
-            <h2>CHOOSE YOUR PLAYER</h2>
-            <div class="char-container">
-                <div class="char-card" id="card-ale" onclick="selectChar('Alessandro')">
-                    <img src="ale.jpeg" alt="Ale">
-                    <h3>ALESSANDRO</h3>
-                </div>
-                <div class="char-card" id="card-gug" onclick="selectChar('Guglielmo')">
-                    <img src="gug.jpeg" alt="Gug">
-                    <h3>GUGLIELMO</h3>
-                </div>
-            </div>
-            <button class="btn" id="startBtn" style="opacity:0.3; pointer-events:none;">START GAME</button>
-        </div>
-    </div>
-
-    <div id="ui-ingame">
-        <div id="score-txt">SCORE: 000</div>
-        <div id="poison-txt" style="color: lime;">STATUS: SOBER</div>
-    </div>
-    <div id="role-tag"></div>
-
-    <canvas id="gameCanvas"></canvas>
-
-<script>
 // --- CONFIGURAZIONE INSTANTDB ---
 const APP_ID = 'd1f665e7-bc74-4e27-a8a1-203e49387593';
-let db;
-try {
-    db = InstantDB.init({ appId: APP_ID });
-} catch(e) {
-    console.error("InstantDB initialization failed:", e);
-}
+// Inizializziamo il DB
+const db = InstantDB.init({ appId: APP_ID });
 
 // --- AUDIO SYSTEM ---
 const sounds = {
-    soundtrack: new Audio('sountrack.mp3'), // Senza la 'd' come richiesto
+    soundtrack: new Audio('sountrack.mp3'),
     frisbee: [new Audio('fx_frisbee1.mp3'), new Audio('fx_frisbee2.mp3'), new Audio('fx_frisbee3.mp3')],
     merda: [new Audio('fx_merda1.mp3'), new Audio('fx_merda2.mp3'), new Audio('fx_merda3.mp3')],
     point: new Audio('fx_point.mp3'),
@@ -104,7 +25,7 @@ function unlockAudio() {
 
 function playSound(key) {
     try {
-        if (key === 'soundtrack') { sounds.soundtrack.play().catch(e => console.warn("Autoplay blocked")); }
+        if (key === 'soundtrack') { sounds.soundtrack.play().catch(e => console.warn("Autoplay bloccato")); }
         else if (key === 'frisbee') {
             const snd = sounds.frisbee[Math.floor(Math.random() * 3)];
             snd.currentTime = 0; snd.play();
@@ -116,7 +37,7 @@ function playSound(key) {
         } else if (key === 'schianto') {
             sounds.schianto.currentTime = 0; sounds.schianto.play();
         }
-    } catch(e) { console.log("Audio error:", e); }
+    } catch(e) { console.log("Errore audio:", e); }
 }
 
 // --- CORE GAME ---
@@ -134,49 +55,67 @@ const frisbee = { x: 0, y: 0, r: 9, vy: 0, active: false, owner: 'bottom', trail
 const tree = { x: 0, y: 0, trunkW: 65, trunkH: 85, opening: 130, branchLength: 160, branchWidth: 220, offsetX: 0, drift: 0 };
 const musicNpc = { x: 0, y: 0, anim: 0 };
 
-// --- LOGICA DI RETE ---
-if (db) {
-    db.subscribe({ players: {} }, (result) => {
-        if (result.data && result.data.players) {
-            result.data.players.forEach(p => {
-                if (p.id !== myRole) {
-                    if (p.id === 'bottom' && players.bottom) { players.bottom.x = p.x; players.bottom.y = p.y; }
-                    if (p.id === 'top' && players.top) { players.top.x = p.x; players.top.y = p.y; }
+// --- LOGICA DI RETE (SOTTOSCRIZIONE) ---
+// Qui diciamo a InstantDB di inviarci aggiornamenti per la collezione "room" e "players"
+db.subscribe({ players: {} }, (result) => {
+    if (result.error) return console.error("Errore DB:", result.error);
+    if (result.data && result.data.players) {
+        result.data.players.forEach(p => {
+            // Se riceviamo dati che non sono i nostri, aggiorniamo la posizione dell'altro
+            if (p.id !== myRole) {
+                if (p.id === 'bottom') { players.bottom.x = p.x; players.bottom.y = p.y; }
+                if (p.id === 'top') { players.top.x = p.x; players.top.y = p.y; }
+            }
+            // Sincronizziamo lo stato globale (punteggio e frisbee)
+            if (p.id === 'gameState') {
+                score = p.score || 0;
+                // Sincronizziamo il frisbee solo se non è attualmente "attivo" per noi
+                if (!frisbee.active) {
+                    frisbee.x = p.fx;
+                    frisbee.y = p.fy;
+                    frisbee.owner = p.owner || 'bottom';
                 }
-                if (p.id === 'gameState') {
-                    score = p.score || 0;
-                    if (!frisbee.active) {
-                        frisbee.x = p.fx; frisbee.y = p.fy;
-                        frisbee.active = p.fActive;
-                        frisbee.owner = p.owner || 'bottom';
-                    }
+                // Se l'altro ha lanciato, lo attiviamo anche noi
+                if (p.fActive && !frisbee.active) {
+                    frisbee.active = true;
+                    frisbee.vy = p.fVy;
                 }
-            });
-        }
-    });
-}
+            }
+        });
+    }
+});
 
 function syncToDB() {
-    if (!myRole || gameState !== 'PLAYING' || !db) return;
+    if (!myRole || gameState !== 'PLAYING') return;
+
     const me = players[myRole];
-    const updates = [db.tx.players[myRole].update({ x: me.x, y: me.y })];
+    
+    // Creiamo una transazione: aggiorniamo noi stessi e lo stato globale
+    const txs = [
+        db.tx.players[myRole].update({ x: me.x, y: me.y })
+    ];
+
+    // Per evitare conflitti, solo Alessandro (bottom) aggiorna il frisbee ufficialmente nel DB
     if (myRole === 'bottom') {
-        updates.push(db.tx.players['gameState'].update({ 
-            score: score, fx: frisbee.x, fy: frisbee.y, 
-            fActive: frisbee.active, owner: frisbee.owner 
+        txs.push(db.tx.players['gameState'].update({ 
+            score: score, 
+            fx: frisbee.x, 
+            fy: frisbee.y, 
+            fActive: frisbee.active,
+            fVy: frisbee.vy,
+            owner: frisbee.owner 
         }));
     }
-    db.transact(updates);
+
+    db.transact(txs);
 }
 
 // --- INTERFACCIA ---
 function goToSelect() {
-    // Forza il passaggio alla selezione personaggi
     unlockAudio(); 
     playSound('soundtrack');
     document.getElementById('screen-title').style.display = 'none';
     document.getElementById('screen-select').style.display = 'block';
-    console.log("Navigated to selection screen");
 }
 
 function selectChar(name) {
@@ -230,8 +169,6 @@ function update() {
     }
 
     const me = players[myRole];
-    if (!me) return;
-
     if (keys['ArrowLeft'] && me.x > 30) me.x -= me.speed;
     if (keys['ArrowRight'] && me.x < canvas.width - 30) me.x += me.speed;
     
@@ -306,7 +243,7 @@ function draw() {
     });
     ctx.restore();
 
-    // NPC
+    // NPC Tastierista
     ctx.save(); ctx.translate(musicNpc.x, musicNpc.y);
     ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(-20, 25); ctx.lineTo(20, 25); ctx.lineTo(15, -10); ctx.lineTo(-15, -10); ctx.fill();
     ctx.beginPath(); ctx.arc(0, -15, 12, 0, Math.PI*2); ctx.fill();
@@ -346,5 +283,3 @@ window.addEventListener('resize', setupPositions);
 setupPositions(); 
 draw();
 </script>
-</body>
-</html>
