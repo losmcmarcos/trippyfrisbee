@@ -3,28 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIPPY FRISBEE - MULTIPLAYER</title>
+    <title>TRIPPY FRISBEE - ONLINE</title>
     <script src="https://unpkg.com/@instantdb/core@latest/dist/index.global.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
-        body { margin: 0; overflow: hidden; background: #081a05; font-family: 'VT323', monospace; color: white; text-align: center; }
-        canvas { display: block; background: #1e3d1a; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.9); z-index: 20; }
-        .btn { padding: 15px 40px; background: #d34; color: white; border: 4px solid white; cursor: pointer; font-size: 28px; font-family: 'VT323'; box-shadow: 5px 5px #000; margin-top: 20px; }
-        .char-container { display: flex; gap: 20px; margin: 20px; }
-        .char-card { border: 4px solid #555; padding: 10px; cursor: pointer; width: 120px; background: #222; transition: 0.3s; }
-        .char-card.selected { border-color: #fff; background: #444; transform: translateY(-5px); }
-        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; font-size: 30px; display: none; text-shadow: 2px 2px #000; }
+        body { margin: 0; overflow: hidden; background: #081a05; font-family: 'VT323', monospace; color: white; image-rendering: pixelated; }
+        canvas { display: block; }
+        
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.95); z-index: 20; text-align: center; }
+        #overlay h1 { font-size: 85px; text-shadow: 5px 5px #d34; margin: 0; letter-spacing: 2px; line-height: 0.8; }
+        
+        .mushroom { width: 60px; height: 50px; margin-bottom: 20px; position: relative; display: inline-block; }
+        .m-top { width: 60px; height: 30px; background: #d34; border-radius: 30px 30px 5px 5px; box-shadow: inset -10px -5px rgba(0,0,0,0.2); }
+        .m-dot { position: absolute; background: white; width: 10px; height: 10px; border-radius: 50%; }
+        .m-stem { width: 25px; height: 20px; background: #eee; margin: -2px auto 0; border-radius: 0 0 5px 5px; }
+
+        .btn { padding: 10px 45px; background: #d34; color: white; border: 4px solid white; cursor: pointer; margin-top: 30px; font-size: 26px; font-family: 'VT323', monospace; box-shadow: 5px 5px #000; transition: 0.2s; }
+        .btn:hover { background: #ff5555; transform: scale(1.05); }
+
+        .char-container { display: flex; gap: 40px; margin: 30px 0; }
+        .char-card { border: 4px solid #555; padding: 10px; cursor: pointer; background: rgba(0,0,0,0.5); width: 160px; transition: 0.3s; }
+        .char-card img { width: 100%; height: 180px; object-fit: cover; border: 2px solid #333; margin-bottom: 10px; }
+        .char-card.selected { border-color: #fff; background: rgba(255,255,255,0.1); box-shadow: 0 0 25px #fff; transform: translateY(-10px); }
+        
+        #ui-ingame { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 3px 3px #000; z-index: 10; display: none; font-size: 30px; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        #role-tag { position: absolute; bottom: 20px; right: 20px; color: #aaa; font-size: 20px; }
     </style>
 </head>
 <body>
 
-    <div id="ui">SCORE: <span id="score">000</span></div>
-
     <div id="overlay">
         <div id="screen-title">
-            <h1 style="font-size: 70px; margin: 0; color: #d34; text-shadow: 4px 4px #fff;">TRIPPY FRISBEE</h1>
-            <p style="letter-spacing: 5px;">ONLINE MULTIPLAYER</p>
+            <div class="mushroom">
+                <div class="m-top">
+                    <div class="m-dot" style="top:5px; left:15px;"></div>
+                    <div class="m-dot" style="top:12px; left:40px; width:6px; height:6px;"></div>
+                </div>
+                <div class="m-stem"></div>
+            </div>
+            <h1>TRIPPY FRISBEE</h1>
+            <p style="color: #666; margin-top: 10px; letter-spacing: 4px;">ONLINE MULTIPLAYER</p>
             <button class="btn" onclick="goToSelect()">INSERT COIN</button>
         </div>
 
@@ -32,184 +52,298 @@
             <h2>CHOOSE YOUR PLAYER</h2>
             <div class="char-container">
                 <div class="char-card" id="card-ale" onclick="selectChar('Alessandro')">
-                    <div style="width:100%; height:100px; background:#d34; margin-bottom:10px;"></div>
-                    <h3>ALE</h3>
+                    <img src="ale.jpeg" alt="Ale">
+                    <h3>ALESSANDRO</h3>
                 </div>
                 <div class="char-card" id="card-gug" onclick="selectChar('Guglielmo')">
-                    <div style="width:100%; height:100px; background:#431; margin-bottom:10px;"></div>
-                    <h3>GUG</h3>
+                    <img src="gug.jpeg" alt="Gug">
+                    <h3>GUGLIELMO</h3>
                 </div>
             </div>
-            <button class="btn" id="startBtn" style="opacity:0.3; pointer-events:none;" onclick="startGame()">START GAME</button>
+            <button class="btn" id="startBtn" style="opacity:0.3; pointer-events:none;">START GAME</button>
         </div>
     </div>
+
+    <div id="ui-ingame">
+        <div id="score-txt">SCORE: 000</div>
+        <div id="poison-txt" style="color: lime;">STATUS: SOBER</div>
+    </div>
+    <div id="role-tag"></div>
 
     <canvas id="gameCanvas"></canvas>
 
 <script>
-// --- CONFIGURAZIONE ---
-const db = InstantDB.init({ appId: 'd1f665e7-bc74-4e27-a8a1-203e49387593' });
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-
-let gameState = 'MENU';
-let myRole = null; 
-let score = 0;
-let players = {
-    top: { x: 0, y: 80, color: '#431', targetX: 0 },
-    bottom: { x: 0, y: 0, color: '#d34', targetX: 0 }
-};
-let frisbee = { x: 0, y: 0, vy: 0, active: false, owner: 'bottom' };
-
-// --- AUDIO ---
-const sounds = {
-    music: new Audio('sountrack.mp3'),
-    frisbee: new Audio('fx_frisbee1.mp3'),
-    point: new Audio('fx_point.mp3'),
-    fail: new Audio('fx_merda1.mp3')
-};
-sounds.music.loop = true;
-
-function playEffect(key) {
-    try {
-        if (key === 'music') {
-            sounds.music.play().catch(() => {});
-        } else if (key === 'frisbee') {
-            sounds.frisbee.currentTime = 0; sounds.frisbee.play().catch(() => {});
-        } else {
-            sounds.music.pause();
-            sounds[key].currentTime = 0;
-            sounds[key].play().catch(() => {});
-            setTimeout(() => { if(gameState === 'PLAY') sounds.music.play().catch(() => {}); }, 2000);
-        }
-    } catch(e) {}
+// --- CONFIGURAZIONE INSTANTDB ---
+const APP_ID = 'd1f665e7-bc74-4e27-a8a1-203e49387593';
+let db;
+try {
+    db = InstantDB.init({ appId: APP_ID });
+} catch(e) {
+    console.error("InstantDB initialization failed:", e);
 }
 
-// --- NETWORK ---
-db.subscribe({ players: {} }, (result) => {
-    if (result.data?.players) {
-        result.data.players.forEach(p => {
-            if (p.id === 'global_state') {
-                score = p.score || 0;
-                // Sincronizziamo il frisbee solo se non lo stiamo gestendo noi
-                if (myRole !== p.lastMover) {
-                    frisbee.active = p.fActive;
-                    frisbee.vy = p.fVy;
-                    frisbee.owner = p.fOwner;
-                }
-            } else if (p.id !== myRole && players[p.id]) {
-                players[p.id].x = p.x; // Aggiorna posizione dell'altro
-            }
-        });
-    }
-});
+// --- AUDIO SYSTEM ---
+const sounds = {
+    soundtrack: new Audio('sountrack.mp3'), // Senza la 'd' come richiesto
+    frisbee: [new Audio('fx_frisbee1.mp3'), new Audio('fx_frisbee2.mp3'), new Audio('fx_frisbee3.mp3')],
+    merda: [new Audio('fx_merda1.mp3'), new Audio('fx_merda2.mp3'), new Audio('fx_merda3.mp3')],
+    point: new Audio('fx_point.mp3'),
+    schianto: new Audio('fx_schianto.mp3')
+};
+sounds.soundtrack.loop = true;
 
-// --- LOGICA DI GIOCO ---
+function unlockAudio() {
+    Object.values(sounds).forEach(s => {
+        if (Array.isArray(s)) { 
+            s.forEach(t => { t.play().then(() => t.pause()).catch(() => {}); }); 
+        } else { 
+            s.play().then(() => s.pause()).catch(() => {}); 
+        }
+    });
+}
+
+function playSound(key) {
+    try {
+        if (key === 'soundtrack') { sounds.soundtrack.play().catch(e => console.warn("Autoplay blocked")); }
+        else if (key === 'frisbee') {
+            const snd = sounds.frisbee[Math.floor(Math.random() * 3)];
+            snd.currentTime = 0; snd.play();
+        } else if (key === 'point') {
+            sounds.point.currentTime = 0; sounds.point.play();
+        } else if (key === 'merda') {
+            const snd = sounds.merda[Math.floor(Math.random() * 3)];
+            snd.currentTime = 0; snd.play();
+        } else if (key === 'schianto') {
+            sounds.schianto.currentTime = 0; sounds.schianto.play();
+        }
+    } catch(e) { console.log("Audio error:", e); }
+}
+
+// --- CORE GAME ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let score = 0, gameState = 'MENU', poisonedLevel = 0, keys = {}, selectedPlayerName = null;
+let frameCount = 0, myRole = null;
+
+const players = {
+    top: { name: 'Guglielmo', x: 0, y: 50, speed: 7, skinColor: '#ffd393' },
+    bottom: { name: 'Alessandro', x: 0, y: 0, speed: 7, skinColor: '#ffd393', beardColor: '#d34' }
+};
+
+const frisbee = { x: 0, y: 0, r: 9, vy: 0, active: false, owner: 'bottom', trail: [], passedThroughBranches: false };
+const tree = { x: 0, y: 0, trunkW: 65, trunkH: 85, opening: 130, branchLength: 160, branchWidth: 220, offsetX: 0, drift: 0 };
+const musicNpc = { x: 0, y: 0, anim: 0 };
+
+// --- LOGICA DI RETE ---
+if (db) {
+    db.subscribe({ players: {} }, (result) => {
+        if (result.data && result.data.players) {
+            result.data.players.forEach(p => {
+                if (p.id !== myRole) {
+                    if (p.id === 'bottom' && players.bottom) { players.bottom.x = p.x; players.bottom.y = p.y; }
+                    if (p.id === 'top' && players.top) { players.top.x = p.x; players.top.y = p.y; }
+                }
+                if (p.id === 'gameState') {
+                    score = p.score || 0;
+                    if (!frisbee.active) {
+                        frisbee.x = p.fx; frisbee.y = p.fy;
+                        frisbee.active = p.fActive;
+                        frisbee.owner = p.owner || 'bottom';
+                    }
+                }
+            });
+        }
+    });
+}
+
+function syncToDB() {
+    if (!myRole || gameState !== 'PLAYING' || !db) return;
+    const me = players[myRole];
+    const updates = [db.tx.players[myRole].update({ x: me.x, y: me.y })];
+    if (myRole === 'bottom') {
+        updates.push(db.tx.players['gameState'].update({ 
+            score: score, fx: frisbee.x, fy: frisbee.y, 
+            fActive: frisbee.active, owner: frisbee.owner 
+        }));
+    }
+    db.transact(updates);
+}
+
+// --- INTERFACCIA ---
 function goToSelect() {
-    playEffect('music');
+    // Forza il passaggio alla selezione personaggi
+    unlockAudio(); 
+    playSound('soundtrack');
     document.getElementById('screen-title').style.display = 'none';
     document.getElementById('screen-select').style.display = 'block';
+    console.log("Navigated to selection screen");
 }
 
 function selectChar(name) {
+    selectedPlayerName = name;
     myRole = (name === 'Alessandro') ? 'bottom' : 'top';
     document.getElementById('card-ale').classList.toggle('selected', name === 'Alessandro');
     document.getElementById('card-gug').classList.toggle('selected', name === 'Guglielmo');
-    document.getElementById('startBtn').style.opacity = 1;
-    document.getElementById('startBtn').style.pointerEvents = 'auto';
+    document.getElementById('startBtn').style.opacity = "1";
+    document.getElementById('startBtn').style.pointerEvents = "auto";
 }
 
-function startGame() {
-    gameState = 'PLAY';
+document.getElementById('startBtn').addEventListener('click', () => {
+    gameState = 'PLAYING';
     document.getElementById('overlay').style.display = 'none';
-    document.getElementById('ui').style.display = 'block';
-    resize();
+    document.getElementById('ui-ingame').style.display = 'block';
+    document.getElementById('role-tag').innerText = "PLAYER: " + selectedPlayerName.toUpperCase();
+    setupPositions();
+});
+
+function setupPositions() {
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    players.top.x = canvas.width / 2; players.bottom.x = canvas.width / 2;
+    players.bottom.y = canvas.height - 110; 
+    players.top.y = 80;
+    tree.x = canvas.width / 2; tree.y = canvas.height / 2;
+    musicNpc.x = canvas.width - 100; musicNpc.y = canvas.height / 2;
+    resetFrisbee();
 }
 
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    players.top.x = canvas.width / 2;
-    players.bottom.x = canvas.width / 2;
-    players.bottom.y = canvas.height - 100;
+function resetFrisbee() {
+    frisbee.active = false; frisbee.vy = 0; frisbee.trail = [];
+    frisbee.x = frisbee.owner === 'bottom' ? players.bottom.x : players.top.x;
+    frisbee.y = frisbee.owner === 'bottom' ? players.bottom.y - 45 : players.top.y + 45;
 }
-window.addEventListener('resize', resize);
 
-const keys = {};
-window.addEventListener('keydown', e => keys[e.code] = true);
-window.addEventListener('keyup', e => keys[e.code] = false);
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 function update() {
-    if (gameState !== 'PLAY') return;
-
-    const me = players[myRole];
-    if (keys['ArrowLeft'] && me.x > 30) me.x -= 8;
-    if (keys['ArrowRight'] && me.x < canvas.width - 30) me.x += 8;
-
-    // Lancio
-    if (keys['Space'] && !frisbee.active && frisbee.owner === myRole) {
-        frisbee.active = true;
-        frisbee.vy = (myRole === 'bottom') ? -14 : 14;
-        playEffect('frisbee');
+    if (gameState !== 'PLAYING') return;
+    frameCount++;
+    musicNpc.anim = Math.sin(frameCount * 0.15) * 5;
+    
+    poisonedLevel = Math.floor(score / 3);
+    let pTxt = document.getElementById('poison-txt');
+    if (score >= 3) {
+        pTxt.innerText = "STATUS: TRIPPING (" + (poisonedLevel * 15) + "%)";
+        pTxt.style.color = "#f0f"; pTxt.classList.add('blink');
+        tree.drift += 0.01 + (poisonedLevel * 0.01);
+        tree.offsetX = Math.sin(tree.drift) * (140 + score * 5);
     }
 
-    // Movimento Frisbee
+    const me = players[myRole];
+    if (!me) return;
+
+    if (keys['ArrowLeft'] && me.x > 30) me.x -= me.speed;
+    if (keys['ArrowRight'] && me.x < canvas.width - 30) me.x += me.speed;
+    
+    if (myRole === 'bottom') {
+        if (keys['ArrowUp'] && me.y > tree.y + 120) me.y -= me.speed;
+        if (keys['ArrowDown'] && me.y < canvas.height - 40) me.y += me.speed;
+        if (keys['Space'] && !frisbee.active && frisbee.owner === 'bottom') {
+            frisbee.active = true; frisbee.vy = -13; playSound('frisbee');
+        }
+    } else {
+        if (keys['ArrowUp'] && me.y > 40) me.y -= me.speed;
+        if (keys['ArrowDown'] && me.y < tree.y - 130) me.y += me.speed;
+        if (keys['Space'] && !frisbee.active && frisbee.owner === 'top') {
+            frisbee.active = true; frisbee.vy = 13; playSound('frisbee');
+        }
+    }
+
     if (frisbee.active) {
         frisbee.y += frisbee.vy;
+        frisbee.trail.push({x: frisbee.x, y: frisbee.y});
+        if (frisbee.trail.length > 12) frisbee.trail.shift();
         
-        // Collisioni locali
+        const relX = frisbee.x - (tree.x + tree.offsetX);
+        if (frisbee.y < tree.y + 20 && frisbee.y > tree.y - tree.branchLength) {
+            if (Math.abs(relX) > tree.opening / 2) {
+                if (Math.abs(relX) < tree.branchWidth / 2) {
+                    playSound('schianto'); playSound('merda');
+                    frisbee.active = false; setTimeout(resetFrisbee, 600);
+                }
+            } else { frisbee.passedThroughBranches = true; }
+        }
+
         let dTop = Math.hypot(frisbee.x - players.top.x, frisbee.y - players.top.y);
         let dBot = Math.hypot(frisbee.x - players.bottom.x, frisbee.y - players.bottom.y);
 
-        if (frisbee.vy < 0 && dTop < 45) { 
-            score++; frisbee.active = false; frisbee.owner = 'top'; playEffect('point'); 
-        } else if (frisbee.vy > 0 && dBot < 45) { 
-            score++; frisbee.active = false; frisbee.owner = 'bottom'; playEffect('point'); 
+        if (frisbee.vy < 0 && dTop < 42) {
+            if (frisbee.passedThroughBranches) { score++; playSound('point'); } else { playSound('merda'); }
+            frisbee.owner = 'top'; resetFrisbee();
+        } else if (frisbee.vy > 0 && dBot < 42) {
+            if (frisbee.passedThroughBranches) { score++; playSound('point'); } else { playSound('merda'); }
+            frisbee.owner = 'bottom'; resetFrisbee();
         }
-
-        if (frisbee.y < -50 || frisbee.y > canvas.height + 50) {
-            frisbee.active = false; playEffect('fail');
-        }
+        if (frisbee.y < -50 || frisbee.y > canvas.height + 50) { playSound('merda'); resetFrisbee(); }
     } else {
-        frisbee.x = players[frisbee.owner].x;
-        frisbee.y = (frisbee.owner === 'bottom') ? players.bottom.y - 40 : players.top.y + 40;
+        frisbee.x = frisbee.owner === 'bottom' ? players.bottom.x : players.top.x;
+        frisbee.y = frisbee.owner === 'bottom' ? players.bottom.y - 40 : players.top.y + 40;
     }
 
-    document.getElementById('score').innerText = score.toString().padStart(3, '0');
-
-    // Invia dati al database
-    db.transact([
-        db.tx.players[myRole].update({ x: me.x }),
-        db.tx.players['global_state'].update({ 
-            score, 
-            fActive: frisbee.active, 
-            fVy: frisbee.vy, 
-            fOwner: frisbee.owner,
-            lastMover: myRole 
-        })
-    ]);
+    document.getElementById('score-txt').innerText = "SCORE: " + score.toString().padStart(3, '0');
+    syncToDB();
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (gameState === 'PLAY') {
-        // Disegno Player Top
-        ctx.fillStyle = players.top.color;
-        ctx.beginPath(); ctx.arc(players.top.x, players.top.y, 25, 0, Math.PI*2); ctx.fill();
-        
-        // Disegno Player Bottom
-        ctx.fillStyle = players.bottom.color;
-        ctx.beginPath(); ctx.arc(players.bottom.x, players.bottom.y, 25, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1e3d1a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (gameState !== 'PLAYING') { requestAnimationFrame(draw); return; }
 
-        // Disegno Frisbee
-        ctx.fillStyle = '#dfff00';
-        ctx.beginPath(); ctx.arc(frisbee.x, frisbee.y, 10, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "white"; ctx.stroke();
+    ctx.save();
+    if (poisonedLevel > 0 && Math.random() > 0.93) {
+        ctx.translate((Math.random()-0.5) * poisonedLevel * 15, 0);
+        ctx.filter = `hue-rotate(${poisonedLevel * 25}deg) brightness(1.2) contrast(1.5)`;
     }
+
+    // Albero
+    ctx.save(); ctx.translate(tree.x + tree.offsetX, tree.y);
+    ctx.fillStyle = '#3d2514'; ctx.fillRect(-tree.trunkW/2, -5, tree.trunkW, tree.trunkH);
+    ctx.fillStyle = '#5d3b22'; ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 5;
+    [-1, 1].forEach(side => {
+        ctx.beginPath(); ctx.moveTo(side * (tree.trunkW/2 - 5), 10);
+        ctx.lineTo(side * (tree.branchWidth / 2), -tree.branchLength);
+        ctx.lineTo(side * (tree.opening / 2), -tree.branchLength);
+        ctx.lineTo(side * 5, 30); ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+    ctx.restore();
+
+    // NPC
+    ctx.save(); ctx.translate(musicNpc.x, musicNpc.y);
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(-20, 25); ctx.lineTo(20, 25); ctx.lineTo(15, -10); ctx.lineTo(-15, -10); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -15, 12, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffd393'; ctx.beginPath(); ctx.arc(0, -15, 7, 0, Math.PI, false); ctx.fill();
+    ctx.fillStyle = '#eee'; ctx.fillRect(-25, 15, 50, 10);
+    ctx.restore();
+
+    // Frisbee
+    frisbee.trail.forEach((p, i) => {
+        ctx.fillStyle = `rgba(200, 255, 0, ${i/12})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, frisbee.r * (i/12), 0, Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle = '#dfff00'; ctx.beginPath(); ctx.arc(frisbee.x, frisbee.y, frisbee.r, 0, Math.PI*2); ctx.fill();
+
+    // Alessandro
+    ctx.save(); ctx.translate(players.bottom.x, players.bottom.y);
+    ctx.fillStyle = '#444'; ctx.beginPath(); ctx.ellipse(0, 0, 26, 16, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = players.bottom.beardColor; ctx.beginPath(); ctx.arc(0, -6, 13, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = players.bottom.skinColor; ctx.beginPath(); ctx.arc(0, -6, 9, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // Guglielmo
+    ctx.save(); ctx.translate(players.top.x, players.top.y);
+    ctx.fillStyle = '#eee'; ctx.beginPath(); ctx.ellipse(0, 0, 26, 16, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#431'; ctx.beginPath(); ctx.arc(0, 6, 13, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = players.top.skinColor; ctx.beginPath(); ctx.arc(0, 6, 6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+    for(let i = 0; i < canvas.height; i += 3) { ctx.fillStyle = "rgba(0, 0, 0, 0.15)"; ctx.fillRect(0, i, canvas.width, 1); }
+    
     update();
     requestAnimationFrame(draw);
 }
-resize();
+
+window.addEventListener('resize', setupPositions);
+setupPositions(); 
 draw();
 </script>
 </body>
