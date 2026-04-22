@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIPPY FRISBEE</title>
+    <title>TRIPPY FRISBEE - ONLINE</title>
+    <script src="https://unpkg.com/@instantdb/core@latest/dist/index.global.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
         body { margin: 0; overflow: hidden; background: #081a05; font-family: 'VT323', monospace; color: white; image-rendering: pixelated; }
@@ -28,6 +29,7 @@
         #ui-ingame { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 3px 3px #000; z-index: 10; display: none; font-size: 30px; }
         .blink { animation: blinker 1s linear infinite; }
         @keyframes blinker { 50% { opacity: 0; } }
+        #role-tag { position: absolute; bottom: 20px; right: 20px; color: #aaa; font-size: 20px; }
     </style>
 </head>
 <body>
@@ -42,7 +44,7 @@
                 <div class="m-stem"></div>
             </div>
             <h1>TRIPPY FRISBEE</h1>
-            <p style="color: #666; margin-top: 10px; letter-spacing: 4px;">ARCADE MODE</p>
+            <p style="color: #666; margin-top: 10px; letter-spacing: 4px;">ONLINE MULTIPLAYER</p>
             <button class="btn" onclick="goToSelect()">INSERT COIN</button>
         </div>
 
@@ -66,60 +68,62 @@
         <div id="score-txt">SCORE: 000</div>
         <div id="poison-txt" style="color: lime;">STATUS: SOBER</div>
     </div>
+    <div id="role-tag"></div>
 
     <canvas id="gameCanvas"></canvas>
 
 <script>
+// --- CONFIGURAZIONE INSTANTDB ---
+const APP_ID = 'd1f665e7-bc74-4e27-a8a1-203e49387593';
+let db;
+try {
+    db = InstantDB.init({ appId: APP_ID });
+} catch(e) {
+    console.error("InstantDB initialization failed:", e);
+}
+
 // --- AUDIO SYSTEM ---
 const sounds = {
-    soundtrack: new Audio('sountrack.mp3'),
+    soundtrack: new Audio('sountrack.mp3'), // Senza la 'd' come richiesto
     frisbee: [new Audio('fx_frisbee1.mp3'), new Audio('fx_frisbee2.mp3'), new Audio('fx_frisbee3.mp3')],
     merda: [new Audio('fx_merda1.mp3'), new Audio('fx_merda2.mp3'), new Audio('fx_merda3.mp3')],
     point: new Audio('fx_point.mp3'),
     schianto: new Audio('fx_schianto.mp3')
 };
 sounds.soundtrack.loop = true;
-let currentMerdaIdx = 0;
-let currentFrisbeeIdx = 0;
 
 function unlockAudio() {
     Object.values(sounds).forEach(s => {
-        if (Array.isArray(s)) { s.forEach(t => { t.play(); t.pause(); }); } 
-        else { s.play(); s.pause(); }
+        if (Array.isArray(s)) { 
+            s.forEach(t => { t.play().then(() => t.pause()).catch(() => {}); }); 
+        } else { 
+            s.play().then(() => s.pause()).catch(() => {}); 
+        }
     });
 }
 
 function playSound(key) {
-    if (key === 'soundtrack') {
-        sounds.soundtrack.play().catch(() => {});
-    } else if (key === 'frisbee') {
-        sounds.frisbee[currentFrisbeeIdx].currentTime = 0;
-        sounds.frisbee[currentFrisbeeIdx].play();
-        currentFrisbeeIdx = (currentFrisbeeIdx + 1) % 3;
-    } else if (key === 'point') {
-        sounds.soundtrack.pause();
-        sounds.point.currentTime = 0;
-        sounds.point.play();
-        setTimeout(() => { if(gameState === 'PLAYING') sounds.soundtrack.play(); }, 1500);
-    } else if (key === 'merda') {
-        sounds.soundtrack.pause();
-        sounds.merda[currentMerdaIdx].currentTime = 0;
-        sounds.merda[currentMerdaIdx].play();
-        currentMerdaIdx = (currentMerdaIdx + 1) % 3;
-        setTimeout(() => { if(gameState === 'PLAYING') sounds.soundtrack.play(); }, 1800);
-    } else if (key === 'schianto') {
-        sounds.soundtrack.pause();
-        sounds.schianto.currentTime = 0;
-        sounds.schianto.play();
-        // Nota: Segue chiamata a 'merda' che farà ripartire la musica.
-    }
+    try {
+        if (key === 'soundtrack') { sounds.soundtrack.play().catch(e => console.warn("Autoplay blocked")); }
+        else if (key === 'frisbee') {
+            const snd = sounds.frisbee[Math.floor(Math.random() * 3)];
+            snd.currentTime = 0; snd.play();
+        } else if (key === 'point') {
+            sounds.point.currentTime = 0; sounds.point.play();
+        } else if (key === 'merda') {
+            const snd = sounds.merda[Math.floor(Math.random() * 3)];
+            snd.currentTime = 0; snd.play();
+        } else if (key === 'schianto') {
+            sounds.schianto.currentTime = 0; sounds.schianto.play();
+        }
+    } catch(e) { console.log("Audio error:", e); }
 }
 
 // --- CORE GAME ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let score = 0, gameState = 'MENU', poisonedLevel = 0, keys = {}, selectedPlayerName = null;
-let frameCount = 0;
+let frameCount = 0, myRole = null;
 
 const players = {
     top: { name: 'Guglielmo', x: 0, y: 50, speed: 7, skinColor: '#ffd393' },
@@ -130,14 +134,54 @@ const frisbee = { x: 0, y: 0, r: 9, vy: 0, active: false, owner: 'bottom', trail
 const tree = { x: 0, y: 0, trunkW: 65, trunkH: 85, opening: 130, branchLength: 160, branchWidth: 220, offsetX: 0, drift: 0 };
 const musicNpc = { x: 0, y: 0, anim: 0 };
 
+// --- LOGICA DI RETE ---
+if (db) {
+    db.subscribe({ players: {} }, (result) => {
+        if (result.data && result.data.players) {
+            result.data.players.forEach(p => {
+                if (p.id !== myRole) {
+                    if (p.id === 'bottom' && players.bottom) { players.bottom.x = p.x; players.bottom.y = p.y; }
+                    if (p.id === 'top' && players.top) { players.top.x = p.x; players.top.y = p.y; }
+                }
+                if (p.id === 'gameState') {
+                    score = p.score || 0;
+                    if (!frisbee.active) {
+                        frisbee.x = p.fx; frisbee.y = p.fy;
+                        frisbee.active = p.fActive;
+                        frisbee.owner = p.owner || 'bottom';
+                    }
+                }
+            });
+        }
+    });
+}
+
+function syncToDB() {
+    if (!myRole || gameState !== 'PLAYING' || !db) return;
+    const me = players[myRole];
+    const updates = [db.tx.players[myRole].update({ x: me.x, y: me.y })];
+    if (myRole === 'bottom') {
+        updates.push(db.tx.players['gameState'].update({ 
+            score: score, fx: frisbee.x, fy: frisbee.y, 
+            fActive: frisbee.active, owner: frisbee.owner 
+        }));
+    }
+    db.transact(updates);
+}
+
+// --- INTERFACCIA ---
 function goToSelect() {
-    unlockAudio(); playSound('soundtrack');
+    // Forza il passaggio alla selezione personaggi
+    unlockAudio(); 
+    playSound('soundtrack');
     document.getElementById('screen-title').style.display = 'none';
     document.getElementById('screen-select').style.display = 'block';
+    console.log("Navigated to selection screen");
 }
 
 function selectChar(name) {
     selectedPlayerName = name;
+    myRole = (name === 'Alessandro') ? 'bottom' : 'top';
     document.getElementById('card-ale').classList.toggle('selected', name === 'Alessandro');
     document.getElementById('card-gug').classList.toggle('selected', name === 'Guglielmo');
     document.getElementById('startBtn').style.opacity = "1";
@@ -148,7 +192,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
     gameState = 'PLAYING';
     document.getElementById('overlay').style.display = 'none';
     document.getElementById('ui-ingame').style.display = 'block';
-    frisbee.owner = (selectedPlayerName === 'Alessandro') ? 'bottom' : 'top';
+    document.getElementById('role-tag').innerText = "PLAYER: " + selectedPlayerName.toUpperCase();
     setupPositions();
 });
 
@@ -156,9 +200,10 @@ function setupPositions() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     players.top.x = canvas.width / 2; players.bottom.x = canvas.width / 2;
     players.bottom.y = canvas.height - 110; 
+    players.top.y = 80;
     tree.x = canvas.width / 2; tree.y = canvas.height / 2;
     musicNpc.x = canvas.width - 100; musicNpc.y = canvas.height / 2;
-    if (!frisbee.active) resetFrisbee();
+    resetFrisbee();
 }
 
 function resetFrisbee() {
@@ -169,13 +214,6 @@ function resetFrisbee() {
 
 window.addEventListener('keydown', e => { keys[e.code] = true; });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-function launch(p) {
-    if (!frisbee.active && frisbee.owner === p) {
-        frisbee.active = true; frisbee.passedThroughBranches = false;
-        frisbee.vy = (p === 'bottom') ? -13 : 13; playSound('frisbee');
-    }
-}
 
 function update() {
     if (gameState !== 'PLAYING') return;
@@ -189,37 +227,39 @@ function update() {
         pTxt.style.color = "#f0f"; pTxt.classList.add('blink');
         tree.drift += 0.01 + (poisonedLevel * 0.01);
         tree.offsetX = Math.sin(tree.drift) * (140 + score * 5);
-    } else {
-        pTxt.innerText = "STATUS: SOBER";
-        pTxt.style.color = "lime"; pTxt.classList.remove('blink');
     }
+
+    const me = players[myRole];
+    if (!me) return;
+
+    if (keys['ArrowLeft'] && me.x > 30) me.x -= me.speed;
+    if (keys['ArrowRight'] && me.x < canvas.width - 30) me.x += me.speed;
     
-    if (keys['ArrowLeft'] && players.bottom.x > 30) players.bottom.x -= players.bottom.speed;
-    if (keys['ArrowRight'] && players.bottom.x < canvas.width - 30) players.bottom.x += players.bottom.speed;
-    if (keys['ArrowUp'] && players.bottom.y > tree.y + 120) players.bottom.y -= players.bottom.speed;
-    if (keys['ArrowDown'] && players.bottom.y < canvas.height - 40) players.bottom.y += players.bottom.speed;
-    if (keys['Space']) launch('bottom');
-    if (keys['KeyA'] && players.top.x > 30) players.top.x -= players.top.speed;
-    if (keys['KeyD'] && players.top.x < canvas.width - 30) players.top.x += players.top.speed;
-    if (keys['KeyW'] && players.top.y > 40) players.top.y -= players.top.speed;
-    if (keys['KeyS'] && players.top.y < tree.y - 130) players.top.y += players.top.speed;
-    if (keys['Enter']) launch('top');
+    if (myRole === 'bottom') {
+        if (keys['ArrowUp'] && me.y > tree.y + 120) me.y -= me.speed;
+        if (keys['ArrowDown'] && me.y < canvas.height - 40) me.y += me.speed;
+        if (keys['Space'] && !frisbee.active && frisbee.owner === 'bottom') {
+            frisbee.active = true; frisbee.vy = -13; playSound('frisbee');
+        }
+    } else {
+        if (keys['ArrowUp'] && me.y > 40) me.y -= me.speed;
+        if (keys['ArrowDown'] && me.y < tree.y - 130) me.y += me.speed;
+        if (keys['Space'] && !frisbee.active && frisbee.owner === 'top') {
+            frisbee.active = true; frisbee.vy = 13; playSound('frisbee');
+        }
+    }
 
     if (frisbee.active) {
         frisbee.y += frisbee.vy;
         frisbee.trail.push({x: frisbee.x, y: frisbee.y});
         if (frisbee.trail.length > 12) frisbee.trail.shift();
+        
         const relX = frisbee.x - (tree.x + tree.offsetX);
-
-        // Collisione Rami (Schianto)
         if (frisbee.y < tree.y + 20 && frisbee.y > tree.y - tree.branchLength) {
             if (Math.abs(relX) > tree.opening / 2) {
                 if (Math.abs(relX) < tree.branchWidth / 2) {
-                    playSound('schianto');
-                    playSound('merda'); // Ora suona sicuramente anche qui
-                    frisbee.active = false; 
-                    setTimeout(resetFrisbee, 600);
-                    return; // Interrompi update per questo frame
+                    playSound('schianto'); playSound('merda');
+                    frisbee.active = false; setTimeout(resetFrisbee, 600);
                 }
             } else { frisbee.passedThroughBranches = true; }
         }
@@ -228,12 +268,10 @@ function update() {
         let dBot = Math.hypot(frisbee.x - players.bottom.x, frisbee.y - players.bottom.y);
 
         if (frisbee.vy < 0 && dTop < 42) {
-            if (frisbee.passedThroughBranches) { score++; playSound('point'); } 
-            else { playSound('merda'); }
+            if (frisbee.passedThroughBranches) { score++; playSound('point'); } else { playSound('merda'); }
             frisbee.owner = 'top'; resetFrisbee();
         } else if (frisbee.vy > 0 && dBot < 42) {
-            if (frisbee.passedThroughBranches) { score++; playSound('point'); } 
-            else { playSound('merda'); }
+            if (frisbee.passedThroughBranches) { score++; playSound('point'); } else { playSound('merda'); }
             frisbee.owner = 'bottom'; resetFrisbee();
         }
         if (frisbee.y < -50 || frisbee.y > canvas.height + 50) { playSound('merda'); resetFrisbee(); }
@@ -241,76 +279,72 @@ function update() {
         frisbee.x = frisbee.owner === 'bottom' ? players.bottom.x : players.top.x;
         frisbee.y = frisbee.owner === 'bottom' ? players.bottom.y - 40 : players.top.y + 40;
     }
+
     document.getElementById('score-txt').innerText = "SCORE: " + score.toString().padStart(3, '0');
+    syncToDB();
 }
 
 function draw() {
     ctx.fillStyle = '#1e3d1a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (gameState === 'PLAYING') {
-        ctx.save();
-        if (poisonedLevel > 0) {
-            if (Math.random() > 0.93) {
-                ctx.translate((Math.random()-0.5) * poisonedLevel * 15, 0);
-                ctx.filter = `hue-rotate(${poisonedLevel * 25}deg) brightness(1.2) contrast(1.5)`;
-            }
-        }
-        
-        // Albero
-        ctx.save(); ctx.translate(tree.x + tree.offsetX, tree.y);
-        ctx.fillStyle = '#3d2514'; ctx.fillRect(-tree.trunkW/2, -5, tree.trunkW, tree.trunkH);
-        ctx.fillStyle = '#5d3b22'; ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 5;
-        [-1, 1].forEach(side => {
-            ctx.beginPath(); ctx.moveTo(side * (tree.trunkW/2 - 5), 10);
-            ctx.lineTo(side * (tree.branchWidth / 2), -tree.branchLength);
-            ctx.lineTo(side * (tree.opening / 2), -tree.branchLength);
-            ctx.lineTo(side * 5, 30); ctx.closePath(); ctx.fill(); ctx.stroke();
-        });
-        ctx.restore();
+    if (gameState !== 'PLAYING') { requestAnimationFrame(draw); return; }
 
-        // NPC Tastierista
-        ctx.save(); ctx.translate(musicNpc.x, musicNpc.y);
-        ctx.fillStyle = '#111'; 
-        ctx.beginPath(); ctx.moveTo(-20, 25); ctx.lineTo(20, 25); ctx.lineTo(15, -10); ctx.lineTo(-15, -10); ctx.closePath(); ctx.fill();
-        ctx.beginPath(); ctx.arc(0, -15, 12, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#ffd393'; ctx.beginPath(); ctx.arc(0, -15, 7, 0, Math.PI, false); ctx.fill();
-        ctx.fillStyle = '#000'; ctx.fillRect(-5, -18, 10, 3);
-        ctx.strokeStyle = '#111'; ctx.lineWidth = 6;
-        ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-18, 10 + musicNpc.anim); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(18, 10 - musicNpc.anim); ctx.stroke();
-        ctx.fillStyle = '#eee'; ctx.fillRect(-25, 15, 50, 10);
-        ctx.fillStyle = '#333'; for(let i=0; i<5; i++) ctx.fillRect(-20 + (i*10), 15, 2, 6);
-        ctx.restore();
-
-        // Frisbee
-        frisbee.trail.forEach((p, i) => {
-            ctx.fillStyle = `rgba(200, 255, 0, ${i/12})`;
-            ctx.beginPath(); ctx.arc(p.x, p.y, frisbee.r * (i/12), 0, Math.PI*2); ctx.fill();
-        });
-        ctx.fillStyle = '#dfff00'; ctx.beginPath(); ctx.arc(frisbee.x, frisbee.y, frisbee.r, 0, Math.PI*2); ctx.fill();
-        
-        // Players (Alessandro con la barba rossa!)
-        [ {p: players.bottom, t: 'Ale'}, {p: players.top, t: 'Gug'} ].forEach(obj => {
-            ctx.save(); ctx.translate(obj.p.x, obj.p.y);
-            ctx.fillStyle = (obj.t === 'Ale') ? '#444' : '#eee';
-            ctx.beginPath(); ctx.ellipse(0, 0, 26, 16, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = (obj.t === 'Ale') ? obj.p.beardColor : '#431';
-            ctx.beginPath(); ctx.arc(0, (obj.t === 'Ale')?-6:6, 13, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = obj.p.skinColor; ctx.beginPath();
-            if (obj.t === 'Ale') { ctx.arc(0, -6, 9, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#865'; ctx.beginPath(); ctx.arc(18, 22, 11, 0, Math.PI*2); ctx.fill();
-            } else { ctx.arc(0, 6, 6, 0, Math.PI*2); ctx.fill(); }
-            ctx.restore();
-        });
-
-        ctx.restore();
-        for(let i = 0; i < canvas.height; i += 3) { ctx.fillStyle = "rgba(0, 0, 0, 0.15)"; ctx.fillRect(0, i, canvas.width, 1); }
+    ctx.save();
+    if (poisonedLevel > 0 && Math.random() > 0.93) {
+        ctx.translate((Math.random()-0.5) * poisonedLevel * 15, 0);
+        ctx.filter = `hue-rotate(${poisonedLevel * 25}deg) brightness(1.2) contrast(1.5)`;
     }
-    requestAnimationFrame(draw);
+
+    // Albero
+    ctx.save(); ctx.translate(tree.x + tree.offsetX, tree.y);
+    ctx.fillStyle = '#3d2514'; ctx.fillRect(-tree.trunkW/2, -5, tree.trunkW, tree.trunkH);
+    ctx.fillStyle = '#5d3b22'; ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 5;
+    [-1, 1].forEach(side => {
+        ctx.beginPath(); ctx.moveTo(side * (tree.trunkW/2 - 5), 10);
+        ctx.lineTo(side * (tree.branchWidth / 2), -tree.branchLength);
+        ctx.lineTo(side * (tree.opening / 2), -tree.branchLength);
+        ctx.lineTo(side * 5, 30); ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+    ctx.restore();
+
+    // NPC
+    ctx.save(); ctx.translate(musicNpc.x, musicNpc.y);
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(-20, 25); ctx.lineTo(20, 25); ctx.lineTo(15, -10); ctx.lineTo(-15, -10); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -15, 12, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffd393'; ctx.beginPath(); ctx.arc(0, -15, 7, 0, Math.PI, false); ctx.fill();
+    ctx.fillStyle = '#eee'; ctx.fillRect(-25, 15, 50, 10);
+    ctx.restore();
+
+    // Frisbee
+    frisbee.trail.forEach((p, i) => {
+        ctx.fillStyle = `rgba(200, 255, 0, ${i/12})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, frisbee.r * (i/12), 0, Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle = '#dfff00'; ctx.beginPath(); ctx.arc(frisbee.x, frisbee.y, frisbee.r, 0, Math.PI*2); ctx.fill();
+
+    // Alessandro
+    ctx.save(); ctx.translate(players.bottom.x, players.bottom.y);
+    ctx.fillStyle = '#444'; ctx.beginPath(); ctx.ellipse(0, 0, 26, 16, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = players.bottom.beardColor; ctx.beginPath(); ctx.arc(0, -6, 13, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = players.bottom.skinColor; ctx.beginPath(); ctx.arc(0, -6, 9, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // Guglielmo
+    ctx.save(); ctx.translate(players.top.x, players.top.y);
+    ctx.fillStyle = '#eee'; ctx.beginPath(); ctx.ellipse(0, 0, 26, 16, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#431'; ctx.beginPath(); ctx.arc(0, 6, 13, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = players.top.skinColor; ctx.beginPath(); ctx.arc(0, 6, 6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+    for(let i = 0; i < canvas.height; i += 3) { ctx.fillStyle = "rgba(0, 0, 0, 0.15)"; ctx.fillRect(0, i, canvas.width, 1); }
+    
     update();
+    requestAnimationFrame(draw);
 }
 
 window.addEventListener('resize', setupPositions);
-setupPositions(); draw();
+setupPositions(); 
+draw();
 </script>
 </body>
 </html>
