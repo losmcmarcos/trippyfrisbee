@@ -22,6 +22,20 @@
         .char-card img { width: 100%; height: 180px; object-fit: cover; border: 2px solid #333; margin-bottom: 10px; }
         .char-card.selected { border-color: #fff; background: rgba(255,255,255,0.1); box-shadow: 0 0 25px #fff; transform: translateY(-10px); }
         #ui-ingame { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 3px 3px #000; z-index: 10; display: none; font-size: 30px; }
+      /* Box Comandi Fisso in alto a destra */
+#controls-ui { 
+    position: absolute; 
+    top: 20px; 
+    right: 20px; 
+    text-align: right; 
+    pointer-events: none; 
+    text-shadow: 2px 2px #000; 
+    z-index: 10; 
+    display: none; /* Nascondo inizialmente */
+    font-size: 20px; 
+    color: #aaa; 
+}
+#controls-ui b { color: #fff; }
         .blink { animation: blinker 1s linear infinite; }
         @keyframes blinker { 50% { opacity: 0; } }
         
@@ -60,10 +74,15 @@
     </div>
 
     <div id="ui-ingame">
+      
         <div id="score-txt">SCORE: 000</div>
         <div id="poison-txt" style="color: lime;">STATUS: SOBER</div>
     </div>
-
+  
+<div id="controls-ui">
+    <b>ARROWS:</b> MOVE<br>
+    <b>SPACE:</b> THROW
+</div>
     <div id="trippy-subs"></div>
 
     <canvas id="gameCanvas"></canvas>
@@ -120,6 +139,7 @@ function selectChar(name) {
 
 document.getElementById('startBtn').addEventListener('click', () => {
     gameState = 'PLAYING'; document.getElementById('overlay').style.display = 'none'; document.getElementById('ui-ingame').style.display = 'block';
+  document.getElementById('controls-ui').style.display = 'block';
     setupPositions();
 });
 
